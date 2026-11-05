@@ -1533,7 +1533,7 @@ Details:
 **Associated Information:**
 - The course admin or instructor shall be able to cancel the use case at any time prior to submitting it.
 - What reactivation restores: only her access. A deactivated student keeps her team and course section membership (BR-student-lifecycle), so reactivation restores no membership; she appears again on her teammates' peer evaluation forms (BR-evaluatee-active).
-- Nothing is owed retroactively: no weekly activity report or peer evaluation is owed, by her or of her, for a week during which her account was inactive.
+- What is owed after reactivation: what she and her teammates owe is decided by BR-submission-owed from her account status at the time. Reactivating her while the previous week's submission window is still open (BR-evaluation-submission-window) makes that week's weekly activity report and peer evaluations owed again, by her and of her.
 - Once this use case's dedicated reactivation action is built, the generic student edit no longer changes whether a student's account is active; until then that edit is the only way to reactivate a student.
 
 **Related Use Cases:** UC-STU-delete-student: Delete a student; UC-STU-deactivate-student: Deactivate a student
