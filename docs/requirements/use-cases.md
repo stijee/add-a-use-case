@@ -1484,7 +1484,7 @@ Details:
   - 5a1. The system changes nothing.
   - 5a2. Use case ends.
 - **6a. The deactivated student is on a team:**
-  - 6a1. The system no longer lists her on her teammates' peer evaluation forms (BR-evaluatee-active); she stays on her team (BR-student-lifecycle).
+  - 6a1. The system no longer lists her on her teammates' peer evaluation forms (BR-evaluatee-active); she stays on her team (BR-student-lifecycle). The course section's peer evaluation report lists her only for a week in which peer evaluations of her exist (BR-evaluatee-active).
   - 6a2. Use case ends.
 
 **Priority:** Low
@@ -1493,7 +1493,7 @@ Details:
 
 **Associated Information:**
 - Consequence of the deactivation: The student will no longer be able to log in or submit weekly activity reports and peer evaluations, but the student's account and her previously submitted work are kept in the system. Deactivation will NOT remove the student from the system or from her team or course section (BR-student-lifecycle), and the account can be reactivated in the future (UC-STU-reactivate-student: Reactivate a student). This is distinct from deletion (UC-STU-delete-student: Delete a student), which is a physical, unrecoverable delete. While deactivated she owes no weekly activity report or peer evaluation, and her teammates owe her no peer evaluation (BR-submission-owed, BR-evaluatee-active).
-- Timing: Deactivation takes effect at the student's next authentication. A token issued to her before the deactivation stays valid until it expires (2 hours).
+- Timing: Deactivation takes effect at the student's next authentication. A token issued to her before the deactivation stays valid until it expires (2 hours); this gap against FR-SEC-active-account is tracked as OI-65.
 
 **Related Use Cases:** UC-STU-delete-student: Delete a student; UC-STU-reactivate-student: Reactivate a student
 **Assumptions:**
