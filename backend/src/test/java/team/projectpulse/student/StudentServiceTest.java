@@ -5,6 +5,8 @@ import team.projectpulse.instructor.Instructor;
 import team.projectpulse.section.Section;
 import team.projectpulse.section.SectionRepository;
 import team.projectpulse.system.UserUtils;
+import team.projectpulse.system.exception.ObjectNotFoundException;
+import team.projectpulse.system.exception.StudentAlreadyDeactivatedException;
 import team.projectpulse.user.MyUserPrincipal;
 import team.projectpulse.user.userinvitation.UserInvitationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -188,6 +191,64 @@ class StudentServiceTest {
 
         // Then
         verify(this.studentRepository, times(1)).deleteById(1);
+    }
+
+    @Test
+    void testFindStudentsByTeamIdListsActiveStudentsOnly() {
+        // Given
+        given(this.studentRepository.findByTeamTeamIdAndEnabledTrue(2)).willReturn(List.of(this.students.get(4), this.students.get(5)));
+
+        // When
+        List<Student> result = this.studentService.findStudentsByTeamId(2);
+
+        // Then
+        assertThat(result).hasSize(2);
+        verify(this.studentRepository, times(1)).findByTeamTeamIdAndEnabledTrue(2);
+    }
+
+    @Test
+    void testDeactivateStudent() {
+        // Given
+        Student woody = this.students.get(3);
+        given(this.studentRepository.findById(7)).willReturn(Optional.of(woody));
+        given(this.studentRepository.save(woody)).willReturn(woody);
+
+        // When
+        Student result = this.studentService.deactivateStudent(7);
+
+        // Then
+        assertThat(result.isEnabled()).isFalse();
+        verify(this.studentRepository, times(1)).save(woody);
+    }
+
+    @Test
+    void testDeactivateStudentAlreadyDeactivated() {
+        // Given
+        Student woody = this.students.get(3);
+        woody.setEnabled(false);
+        given(this.studentRepository.findById(7)).willReturn(Optional.of(woody));
+
+        // When
+        Throwable thrown = catchThrowable(() -> this.studentService.deactivateStudent(7));
+
+        // Then
+        assertThat(thrown)
+                .isInstanceOf(StudentAlreadyDeactivatedException.class)
+                .hasMessage("The student is already deactivated.");
+        verify(this.studentRepository, never()).save(any());
+    }
+
+    @Test
+    void testDeactivateStudentNotFound() {
+        // Given
+        given(this.studentRepository.findById(999)).willReturn(Optional.empty());
+
+        // When
+        Throwable thrown = catchThrowable(() -> this.studentService.deactivateStudent(999));
+
+        // Then
+        assertThat(thrown).isInstanceOf(ObjectNotFoundException.class);
+        verify(this.studentRepository, never()).save(any());
     }
 
 }
