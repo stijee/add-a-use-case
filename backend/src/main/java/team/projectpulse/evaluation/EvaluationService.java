@@ -170,7 +170,14 @@ public class EvaluationService {
     public PeerEvaluationAverage getPeerEvaluationAverage(String week, Student student) {
         // Get all evaluations for the student in the given week
         List<PeerEvaluation> evaluations = this.evaluationRepository.findByWeekAndEvaluateeId(week, student.getId());
+        return toPeerEvaluationAverage(week, student, evaluations);
+    }
 
+    /**
+     * Summarizes the given evaluations of one student for one week. Callers that have already loaded the evaluations
+     * pass them in, so the same rows are not read twice.
+     */
+    private PeerEvaluationAverage toPeerEvaluationAverage(String week, Student student, List<PeerEvaluation> evaluations) {
         PeerEvaluationAverage peerEvaluationAverage = new PeerEvaluationAverage();
 
         peerEvaluationAverage.setStudentId(student.getId());
