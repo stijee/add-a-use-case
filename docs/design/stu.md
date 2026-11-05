@@ -57,11 +57,11 @@ classDiagram
     EvaluationService --> StudentRepository
 ```
 
-- **Backend, `student/`:** `StudentController.deactivateStudent` and `StudentService.deactivateStudent` (new). `StudentService.findStudentsByTeamId` switches to the new `StudentRepository.findByTeamTeamIdAndEnabledTrue`. `StudentSecurityService.isCurrentUserAdminOfStudentCourse` (new) compares the caller's JWT `userId` with `student.section.course.courseAdmin`, the same check `InstructorSecurityService.isCurrentUserAdminOfInstructorCourse` makes for instructors, and fails closed (a missing student is `false`, never an exception), as the class's existing methods do.
-- **Backend, `security/authorizationmanagers/`:** `StudentCourseAdminAuthorizationManager` (new) reads `studentId` and delegates to `isCurrentUserAdminOfStudentCourse`. It is composed with the existing `StudentInstructorAuthorizationManager` in `SecurityConfiguration`.
-- **Backend, `system/exception/`:** `StudentAlreadyDeactivatedException` (new), mapped in `ExceptionHandlerAdvice` to `409` / `CONFLICT`.
-- **Backend, `evaluation/`:** `EvaluationService.addPeerEvaluation` rejects an evaluatee whose account is inactive. `generateWeeklyPeerEvaluationReportForSection` drops a student whose account is inactive when `getPeerEvaluationAverage` found no evaluations of her that week.
-- **Frontend:** `src/apis/student/index.ts` adds `deactivateStudent(id)` on the shared `request` instance. `pages/students/Students.vue` adds a Deactivate button to the Operations column, shown only when `row.enabled`, which opens an `ElMessageBox.confirm` stating the consequences from the use case's Associated Information. `pages/evaluations/SubmitTeamsEvaluations.vue` is unchanged; it receives active teammates only.
+- **Backend, `student/`:** `StudentController.deactivateStudent` and `StudentService.deactivateStudent` (new). `StudentService.findStudentsByTeamId` switches to the new `StudentRepository.findByTeamTeamIdAndEnabledTrue`; its only caller is `StudentController.findStudentsByTeamId`, and `findByTeamTeamId` has no caller but that service method (`SubmissionStatusService` and the report load students through `findBySectionSectionId`), so the narrowing reaches no other server path. `StudentSecurityService.isCurrentUserAdminOfStudentCourse` (new) compares the caller's JWT `userId` with `student.section.course.courseAdmin`, the same check `InstructorSecurityService.isCurrentUserAdminOfInstructorCourse` makes for instructors, and fails closed (a missing student is `false`, never an exception), as the class's existing methods do.
+- **Backend, `security/authorizationmanagers/`:** `StudentCourseAdminAuthorizationManager` (new) reads `studentId` and delegates to `isCurrentUserAdminOfStudentCourse`. It is composed with the existing `StudentInstructorAuthorizationManager`, which admits the caller when she is in `student.section.instructors` (the course section's assigned instructors, not the team's instructor). The rule in `SecurityConfiguration` is an exact `requestMatchers(HttpMethod.PATCH, baseUrl + "/students/{studentId}/deactivate")` in the `/students/**` block; the block's other matchers are exact patterns that do not match this path, so its position within the block is free, as long as it precedes the `denyAll()` catch-all.
+- **Backend, `system/exception/`:** `StudentAlreadyDeactivatedException` (new), mapped in `ExceptionHandlerAdvice` with `@ResponseStatus(HttpStatus.CONFLICT)` to `Result(false, StatusCode.CONFLICT, message)`; `StatusCode.CONFLICT` (`409`) already exists.
+- **Backend, `evaluation/`:** `EvaluationService.addPeerEvaluation` rejects an evaluatee whose account is inactive, with a check placed after the same-team check and before the duplicate check. Each `POST /evaluations` carries one evaluatee, and the form posts one per teammate, so a refusal saves nothing and touches no other evaluation; the server has no "every member was evaluated" check to narrow (completeness is the form's, over the teammates it lists). `generateWeeklyPeerEvaluationReportForSection` drops a student whose account is inactive when `getPeerEvaluationAverage` found no evaluations of her that week. "Evaluations of her" are the rows with her as evaluatee, her self-evaluation included; the evaluations she wrote of others stay in their reports as they are, and students on no team stay excluded as today.
+- **Frontend:** `src/apis/student/index.ts` adds `deactivateStudent(id)` on the shared `request` instance. `pages/students/Students.vue` adds a Deactivate button to the Operations column, shown only when `row.enabled`. That row is where UC-STU-view-student is realized (`traceability.md`), so steps 2–3 happen there and "refreshes her details" (3a2) is a list reload. The button opens `ElMessageBox.confirm` (type `warning`, title "Deactivate a student", buttons "Deactivate" and "Cancel") whose body states the consequences in the use case's Associated Information: she can no longer log in or submit weekly activity reports and peer evaluations; her account, submitted work, team, and course section are kept; she can be reactivated. On success the page shows `ElMessage.success('The student has been deactivated.')` (step 6) and reloads the list; the API message "Deactivate student successfully" is not shown. On a rejected request the shared interceptor has already toasted the server message (a `409`) or routed to the forbidden page (a `403`), so the page only catches the rejection, adds no second toast, and reloads the list. The list is already scoped to the caller's own course section, so the button needs no per-row permission check. `pages/evaluations/SubmitTeamsEvaluations.vue` is unchanged: new submissions list active teammates only, and update mode reloads the evaluator's existing evaluations (an evaluation of her written before the deactivation included) and re-saves them through the unchanged `PUT /evaluations/{evaluationId}`.
 
 ## Sequence
 
@@ -92,11 +92,11 @@ sequenceDiagram
             alt already inactive (3a2)
                 SS-->>SC: StudentAlreadyDeactivatedException
                 SC-->>SPA: 409 "The student is already deactivated."
-                SPA-->>U: Message, list reloads
+                SPA-->>U: Interceptor toasts the message, page reloads the list (refreshes her details)
             else active
                 SS->>DB: save, enabled false; team and course section untouched
                 SC-->>SPA: 200 StudentDto, enabled false
-                SPA-->>U: "Student deactivated", list reloads with the Disabled tag (step 6)
+                SPA-->>U: "The student has been deactivated.", list reloads with the Disabled tag (step 6)
             end
         end
     end
@@ -167,17 +167,24 @@ No delta. Deactivation uses the existing `enabled` column of `PeerEvaluationUser
 
 ## Tests
 
+Fixtures, from the `dev` seed (`DataInitializer`). The target student is Woody Allen (`w.allen@abc.edu`), on Team2 in course section 2023-2024 of COSC 40993 Senior Design. Peer evaluations of him exist for `2023-W31` only. The `dev` clock (2023-08-20) makes `2023-W32` the previous week, so his teammates' submission window for it is open. Course actors:
+- Bingyang Wei (`b.wei`) owns the course and is also assigned to that course section.
+- Bill Gates is assigned to the course section.
+- Tim Cook owns another course (EE 30323) and is assigned to no course section of this one.
+
+The seed has no plain instructor who is unassigned, so Tim stands in for both "instructor not assigned" and "another course's admin". Integration tests roll back after each test (`AbstractIntegrationTest` is `@Transactional`), so a test may change the seed.
+
 | Use case, flow | Level | Asserts |
 |---|---|---|
-| UC-STU-deactivate-student main, owning course admin | integration | The course admin who owns the course (`b.wei`) gets `200` and `enabled: false`. The student's HTTP Basic login then returns `401`. Her activities and peer evaluations still exist, and `POST /students/search` still lists her with her team |
-| UC-STU-deactivate-student main, assigned instructor | integration | An instructor assigned to her course section (Bill) gets `200` and `enabled: false` |
-| UC-STU-deactivate-student 3a1 | E2E (Cypress, API stubbed) | A row whose student is inactive shows no Deactivate button |
-| UC-STU-deactivate-student 3a2 | integration | A second `PATCH` returns `409` with "The student is already deactivated."; the student is unchanged |
-| UC-STU-deactivate-student 3b | integration | The student herself, another student, an instructor not assigned to her course section, another course's admin (Tim), and an unknown id each get `403` with the `Result` envelope; the student stays active |
-| UC-STU-deactivate-student 5a | E2E (Cypress, API stubbed) | Cancelling the confirmation sends no `PATCH` |
-| UC-STU-deactivate-student 6a, form listing | integration | After the deactivation, `GET /students/teams/{teamId}` omits her and still lists her active teammates |
-| UC-STU-deactivate-student 6a, submission | integration | Submitting a peer evaluation of her returns `400` with the BR-evaluatee-active message, and nothing is saved |
-| UC-STU-deactivate-student 6a, report | integration | The course section's report omits her for a week with no peer evaluations of her and includes her for a week that has some; active students on a team are listed in both weeks |
+| UC-STU-deactivate-student main, owning course admin | integration | With `b.wei` first removed from the course section's instructors (inside the test, so the course-admin manager, not the instructor manager, admits him), `b.wei` deactivates Woody: `200`, `enabled: false`. Woody's HTTP Basic login then returns `401`. His activities and peer evaluations still exist, and `POST /students/search` still lists him on Team2 |
+| UC-STU-deactivate-student main, assigned instructor | integration | Bill deactivates Woody: `200`, `enabled: false` |
+| UC-STU-deactivate-student 3a1 | E2E (Cypress, API stubbed, `cy.intercept` as in `cypress/e2e/reminders.spec.cy.js`) | A row whose `enabled` is false shows no Deactivate button |
+| UC-STU-deactivate-student 3a2 | integration | A second `PATCH` on Woody returns `409`, `flag: false`, message "The student is already deactivated."; Woody is unchanged |
+| UC-STU-deactivate-student 3b | integration | Woody himself, John (another student), Tim (unassigned instructor, another course's admin), and an id that names no student each get `403` with the `Result` envelope; Woody stays active |
+| UC-STU-deactivate-student 5a | E2E (Cypress, API stubbed) | Clicking "Cancel" in the confirmation sends no `PATCH` |
+| UC-STU-deactivate-student 6a, form listing | integration | After Woody's deactivation, `GET /students/teams/{Team2 id}` with Amanda's token lists Amanda, Cora, and Agustin and not Woody |
+| UC-STU-deactivate-student 6a, submission | integration | After Woody's deactivation, Amanda's `POST /evaluations` of Woody for `2023-W32` returns `400` with "You can evaluate only a teammate whose account is active."; no row is saved. Her evaluation of Cora for the same week still saves |
+| UC-STU-deactivate-student 6a, report | integration | After Woody's deactivation, the course section's report omits him for `2023-W32` (no evaluations of him) and lists him for `2023-W31` (evaluations exist); Amanda, active, is listed in both weeks |
 | `StudentService.deactivateStudent` | unit | Sets `enabled` false and saves; throws `StudentAlreadyDeactivatedException` when she is already inactive and `ObjectNotFoundException` for a missing id |
 | `StudentSecurityService.isCurrentUserAdminOfStudentCourse` | unit | True only for the owning course admin; false for another course's admin and for a missing student |
 | `EvaluationService.addPeerEvaluation` | unit | Rejects an inactive evaluatee before saving |
@@ -187,5 +194,6 @@ No delta. Deactivation uses the existing `enabled` column of `PeerEvaluationUser
 - **Live tokens (OI-65).** A deactivated student keeps access for the rest of her token's 2-hour life, so she can still submit records and hold edit locks in that window. The locks lapse under BR-lock-expiry.
 - **What reactivation makes owed.** BR-submission-owed decides what is owed from account status at the time, so reactivating her while the previous week's submission window is still open makes that week's items owed again, by her and of her (UC-STU-reactivate-student's Associated Information). The design of UC-STU-reactivate-student should decide whether that is wanted. Answering "no" needs a deactivation timestamp, which is a data-model change: the system records none today, so "active during that week" cannot be evaluated.
 - **The EVA rows overstate their state until this is built.** UC-EVA-submit-evaluation and UC-EVA-section-evaluation-report now cite BR-evaluatee-active, which the code does not yet enforce, while `traceability.md` still marks both `✅ Built` / `✅ Verified`. They are not downgraded in the design PR. The build PR for this use case must either cite the new `addPeerEvaluation` and report tests (the 6a submission and 6a report rows above) in those two rows' Tests cells, or mark their Verify `🟡 Partial` with BR-evaluatee-active named as the gap.
+- **Two deactivations at once.** Two `PATCH` requests that both read her as active both return `200`, and 3a2's `409` is not given to the second. Accepted: the result is the same inactive account either way, and adding row versioning to `PeerEvaluationUser` is out of proportion for an action used a few times a year.
 - **The generic edit still bypasses confirmation.** Until UC-STU-reactivate-student retires the toggle, an instructor can still deactivate through the edit form with no warning step.
 - **An inactive evaluator.** BR-evaluatee-active governs the evaluatee only. A student deactivated mid-session can still submit her own evaluations during the token window of OI-65; closing OI-65 closes this too.
