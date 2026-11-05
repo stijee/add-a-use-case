@@ -169,15 +169,15 @@ No delta. Deactivation uses the existing `enabled` column of `PeerEvaluationUser
 
 | Use case, flow | Level | Asserts |
 |---|---|---|
-| UC-STU-deactivate main, owning course admin | integration | The course admin who owns the course (`b.wei`) gets `200` and `enabled: false`. The student's HTTP Basic login then returns `401`. Her activities and peer evaluations still exist, and `POST /students/search` still lists her with her team |
-| UC-STU-deactivate main, assigned instructor | integration | An instructor assigned to her course section (Bill) gets `200` and `enabled: false` |
-| UC-STU-deactivate 3a1 | E2E (Cypress, API stubbed) | A row whose student is inactive shows no Deactivate button |
-| UC-STU-deactivate 3a2 | integration | A second `PATCH` returns `409` with "The student is already deactivated."; the student is unchanged |
-| UC-STU-deactivate 3b | integration | The student herself, another student, an instructor not assigned to her course section, another course's admin (Tim), and an unknown id each get `403` with the `Result` envelope; the student stays active |
-| UC-STU-deactivate 5a | E2E (Cypress, API stubbed) | Cancelling the confirmation sends no `PATCH` |
-| UC-STU-deactivate 6a, form listing | integration | After the deactivation, `GET /students/teams/{teamId}` omits her and still lists her active teammates |
-| UC-STU-deactivate 6a, submission | integration | Submitting a peer evaluation of her returns `400` with the BR-evaluatee-active message, and nothing is saved |
-| UC-STU-deactivate 6a, report | integration | The course section's report omits her for a week with no peer evaluations of her and includes her for a week that has some; active students on a team are listed in both weeks |
+| UC-STU-deactivate-student main, owning course admin | integration | The course admin who owns the course (`b.wei`) gets `200` and `enabled: false`. The student's HTTP Basic login then returns `401`. Her activities and peer evaluations still exist, and `POST /students/search` still lists her with her team |
+| UC-STU-deactivate-student main, assigned instructor | integration | An instructor assigned to her course section (Bill) gets `200` and `enabled: false` |
+| UC-STU-deactivate-student 3a1 | E2E (Cypress, API stubbed) | A row whose student is inactive shows no Deactivate button |
+| UC-STU-deactivate-student 3a2 | integration | A second `PATCH` returns `409` with "The student is already deactivated."; the student is unchanged |
+| UC-STU-deactivate-student 3b | integration | The student herself, another student, an instructor not assigned to her course section, another course's admin (Tim), and an unknown id each get `403` with the `Result` envelope; the student stays active |
+| UC-STU-deactivate-student 5a | E2E (Cypress, API stubbed) | Cancelling the confirmation sends no `PATCH` |
+| UC-STU-deactivate-student 6a, form listing | integration | After the deactivation, `GET /students/teams/{teamId}` omits her and still lists her active teammates |
+| UC-STU-deactivate-student 6a, submission | integration | Submitting a peer evaluation of her returns `400` with the BR-evaluatee-active message, and nothing is saved |
+| UC-STU-deactivate-student 6a, report | integration | The course section's report omits her for a week with no peer evaluations of her and includes her for a week that has some; active students on a team are listed in both weeks |
 | `StudentService.deactivateStudent` | unit | Sets `enabled` false and saves; throws `StudentAlreadyDeactivatedException` when she is already inactive and `ObjectNotFoundException` for a missing id |
 | `StudentSecurityService.isCurrentUserAdminOfStudentCourse` | unit | True only for the owning course admin; false for another course's admin and for a missing student |
 | `EvaluationService.addPeerEvaluation` | unit | Rejects an inactive evaluatee before saving |
