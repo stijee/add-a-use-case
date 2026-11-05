@@ -39,7 +39,7 @@
           <el-tag type="danger" v-else>Disabled</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Operations" width="120">
+      <el-table-column label="Operations" width="160">
         <template #default="{ row }">
           <el-button
             icon="Edit"
@@ -47,6 +47,17 @@
             plain
             type="primary"
             @click.stop="showEditStudentDialog(row)"
+          ></el-button>
+          <!-- UC-STU-deactivate-student 3a1: not offered for a student who is already deactivated -->
+          <el-button
+            v-if="row.enabled"
+            icon="SwitchButton"
+            circle
+            plain
+            type="danger"
+            title="Deactivate"
+            data-cy="deactivate-student"
+            @click.stop="confirmDeactivateStudent(row)"
           ></el-button>
         </template>
       </el-table-column>
@@ -78,7 +89,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { searchStudents } from '@/apis/student'
+import { deactivateStudent, searchStudents } from '@/apis/student'
 import type {
   SearchStudentByCriteriaResponse,
   Student,
@@ -86,7 +97,7 @@ import type {
 } from '@/apis/student/types'
 import { useSettingsStore } from '@/stores/settings'
 import EditStudentForm from './EditStudentForm.vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const searchCriteria = ref<StudentSearchCriteria>({
   sectionId: NaN,
@@ -161,6 +172,31 @@ function showEditStudentDialog(student: Student) {
 
 function closeDialog() {
   dialogVisible.value = false
+  loadStudents()
+}
+
+// UC-STU-deactivate-student: warn about the consequences, ask for confirmation, then deactivate
+async function confirmDeactivateStudent(student: Student) {
+  try {
+    await ElMessageBox.confirm(
+      `${student.firstName} ${student.lastName} will no longer be able to log in or submit weekly activity reports and peer evaluations. ` +
+        'Her account, submitted work, team, and course section are kept, and she can be reactivated later. Continue?',
+      'Deactivate a student',
+      {
+        confirmButtonText: 'Deactivate',
+        cancelButtonText: 'Cancel',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return // 5a: cancelled, nothing is sent
+  }
+  try {
+    await deactivateStudent(student.id as number)
+    ElMessage.success('The student has been deactivated.')
+  } catch {
+    // The shared request interceptor has already shown the server's message (409) or routed to the forbidden page (403)
+  }
   loadStudents()
 }
 
