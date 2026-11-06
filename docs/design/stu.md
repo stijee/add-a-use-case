@@ -148,7 +148,7 @@ The student's account has two states, active and inactive, and this use case dra
 
 **Editing an evaluation recorded before her deactivation is unchanged.** BR-evaluatee-active governs submitting, and keeps evaluations already recorded. `updatePeerEvaluation` gets no new check, and the form no longer lists her, so there is nothing to edit through the page. Rejected: refusing updates too, which BR-evaluatee-active does not ask for.
 
-**The report decides from the evaluations it already loads.** `getPeerEvaluationAverage` already queries her evaluations for the week, and the report drops an inactive student when that list is empty. Rejected: a new repository query (`existsByWeekAndEvaluateeId`), which would read the same rows twice.
+**The report decides from the evaluations it already loads.** `generateWeeklyPeerEvaluationReportForSection` queries each student's evaluations for the week itself (`findByWeekAndEvaluateeId`), drops an inactive student when that list is empty, and hands the list to the private `toPeerEvaluationAverage(week, student, evaluations)` to build her row. `getPeerEvaluationAverage` still loads the evaluations and delegates to the same private method, so its other callers are unchanged. Rejected: a new repository query (`existsByWeekAndEvaluateeId`) in front of `getPeerEvaluationAverage`, which would read the same rows twice.
 
 **The generic edit keeps the `enabled` toggle for now.** It is today's only way to reactivate a student. The design of UC-STU-reactivate-student retires it, as that use case's Associated Information states. Rejected: removing it now, which would leave no way to reactivate a student.
 
@@ -187,7 +187,9 @@ The seed has no plain instructor who is unassigned, so Tim stands in for both "i
 | UC-STU-deactivate-student 6a, report | integration | After Woody's deactivation, the course section's report omits him for `2023-W32` (no evaluations of him) and lists him for `2023-W31` (evaluations exist); Amanda, active, is listed in both weeks |
 | `StudentService.deactivateStudent` | unit | Sets `enabled` false and saves; throws `StudentAlreadyDeactivatedException` when she is already inactive and `ObjectNotFoundException` for a missing id |
 | `StudentSecurityService.isCurrentUserAdminOfStudentCourse` | unit | True only for the owning course admin; false for another course's admin and for a missing student |
+| `StudentCourseAdminAuthorizationManager` | unit | `StudentCourseAdminAuthorizationManagerTest`: grants exactly what `isCurrentUserAdminOfStudentCourse` answers for the bound `studentId`; denies, without asking the service, when the matched route bound no `studentId` or one that is not a number |
 | `EvaluationService.addPeerEvaluation` | unit | Rejects an inactive evaluatee before saving |
+| `EvaluationService.generateWeeklyPeerEvaluationReportForSection` | unit | `EvaluationServiceTest.testGenerateWeeklyPeerEvaluationReportForSectionListsInactiveStudentOnlyWhenEvaluated`: an inactive student is listed, with her average, when evaluations of her exist that week, and omitted when none do; the active students are listed |
 
 ## Open questions / risks
 
