@@ -193,8 +193,17 @@ class StudentServiceTest {
         verify(this.studentRepository, times(1)).deleteById(1);
     }
 
+    /**
+     * Checks only that the service delegates to the active-only repository query. The repository is
+     * mocked here, so the active-only filter itself cannot be verified at this level: this test stays
+     * green if the query behind {@code findByTeamTeamIdAndEnabledTrue} returns inactive students too.
+     * The oracle for the filter is
+     * {@code StudentDeactivationIntegrationTest.teamListingOmitsDeactivatedTeammate}, confirmed by a
+     * break experiment: with the query overridden to select every student on the team, this test
+     * passed and that one failed.
+     */
     @Test
-    void testFindStudentsByTeamIdListsActiveStudentsOnly() {
+    void testFindStudentsByTeamIdDelegatesToTheActiveOnlyQuery() {
         // Given
         given(this.studentRepository.findByTeamTeamIdAndEnabledTrue(2)).willReturn(List.of(this.students.get(4), this.students.get(5)));
 
