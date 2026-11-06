@@ -61,4 +61,28 @@ describe('Deactivate a student', () => {
     cy.contains('The student has been deactivated.')
     cy.wait('@search') // the list reloads
   })
+
+  it('shows the server message once and reloads the list when she is already deactivated (3a2)', () => {
+    // Another user deactivated her after this page loaded: the PATCH is refused, and the reload shows her deactivated
+    cy.intercept('PATCH', '**/students/*/deactivate', {
+      statusCode: 409,
+      body: { flag: false, code: 409, message: 'The student is already deactivated.', data: null }
+    }).as('conflict')
+    cy.intercept('POST', '**/students/search*', {
+      body: page([student(7, 'Woody', 'Allen', false), student(8, 'Amanda', 'Wagner', false)])
+    }).as('reload')
+
+    cy.contains('tr', 'Woody').find('[data-cy=deactivate-student]').click()
+    cy.get('.el-message-box').contains('button', 'Deactivate').click()
+    cy.wait('@conflict')
+    cy.wait('@reload') // the list reloads, which refreshes her details
+
+    // The server's message is the only toast: the page adds neither a second error nor the success message
+    cy.get('.el-message')
+      .should('have.length', 1)
+      .and('have.class', 'el-message--error')
+      .and('contain', 'The student is already deactivated.')
+    cy.contains('The student has been deactivated.').should('not.exist')
+    cy.contains('tr', 'Woody').find('[data-cy=deactivate-student]').should('not.exist')
+  })
 })
