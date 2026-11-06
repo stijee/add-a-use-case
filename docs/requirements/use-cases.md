@@ -1484,8 +1484,10 @@ Details:
   - 5a1. The system changes nothing.
   - 5a2. Use case ends.
 - **6a. The deactivated student is on a team:**
-  - 6a1. The system no longer lists her on her teammates' peer evaluation forms (BR-evaluatee-active); she stays on her team (BR-student-lifecycle). The course section's peer evaluation report lists her only for a week in which peer evaluations of her exist (BR-evaluatee-active).
-  - 6a2. Use case ends.
+  - 6a1. The system no longer lists her on her teammates' peer evaluation forms (BR-evaluatee-active).
+  - 6a2. The course section's peer evaluation report lists her only for a week in which peer evaluations of her exist (BR-evaluatee-active).
+  - 6a3. She stays on her team (BR-student-lifecycle).
+  - 6a4. Use case ends.
 
 **Priority:** Low
 **Frequency of Use:** Rare. Occurs occasionally when a student withdraws from a course section.

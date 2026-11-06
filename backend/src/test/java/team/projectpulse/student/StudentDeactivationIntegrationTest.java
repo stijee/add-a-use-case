@@ -35,8 +35,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * UC-STU-deactivate-student, end to end through the API: the main flow for both permitted actors, 3a2, 3b, and the
- * three parts of 6a (the peer evaluation form, a submission, and the course section's report). 3a1 and 5a are UI
- * behavior and are covered by {@code cypress/e2e/deactivate-student.spec.cy.js}.
+ * three steps of 6a (6a1: the peer evaluation form and a submission; 6a2: the course section's report; 6a3: he stays
+ * on his team, asserted in the owning course admin's main flow). 3a1 and 5a are UI behavior and are covered by
+ * {@code cypress/e2e/deactivate-student.spec.cy.js}.
  *
  * <p>Fixtures, from the dev seed: Woody Allen (id 7) is on Team2 (id 2) in course section 2023-2024 (id 2) with
  * Amanda (8), Cora (9), and Agustin (10). Peer evaluations of him exist for 2023-W31 only, and the dev clock makes
@@ -120,7 +121,7 @@ class StudentDeactivationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Main flow: the owning course admin, not assigned to the course section, deactivates a student")
+    @DisplayName("Main flow and 6a3: the owning course admin, not assigned to the course section, deactivates a student, who stays on his team")
     void owningCourseAdminDeactivatesStudent() throws Exception {
         // Given: Bingyang is removed from the course section's instructors, so only the course-admin check can admit him
         Section section2 = this.sectionRepository.findById(SECTION2_ID).orElseThrow();
@@ -202,7 +203,7 @@ class StudentDeactivationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("6a: the peer evaluation form no longer lists the deactivated teammate")
+    @DisplayName("6a1: the peer evaluation form no longer lists the deactivated teammate")
     void teamListingOmitsDeactivatedTeammate() throws Exception {
         deactivateWoody();
 
@@ -214,7 +215,7 @@ class StudentDeactivationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("6a: a peer evaluation of the deactivated teammate is refused; one of an active teammate still saves")
+    @DisplayName("6a1: a peer evaluation of the deactivated teammate is refused; one of an active teammate still saves")
     void evaluationOfDeactivatedTeammateIsRefused() throws Exception {
         deactivateWoody();
 
@@ -235,7 +236,7 @@ class StudentDeactivationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("6a: the course section's report lists the deactivated student only for a week with evaluations of him")
+    @DisplayName("6a2: the course section's report lists the deactivated student only for a week with evaluations of him")
     void reportListsDeactivatedStudentOnlyWhenEvaluated() throws Exception {
         deactivateWoody();
 
