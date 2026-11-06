@@ -1498,8 +1498,8 @@ Details:
 - Timing: Deactivation takes effect at the student's next authentication. A token issued to her before the deactivation stays valid until it expires (2 hours); this gap against FR-SEC-active-account is tracked as OI-65.
 
 **Related Use Cases:** UC-STU-delete-student: Delete a student; UC-STU-reactivate-student: Reactivate a student
-**Assumptions:**
-**Open Issues:**
+**Assumptions:** A course admin or instructor permitted by BR-student-lifecycle needs no further approval to deactivate a student. A deactivation is undone only through UC-STU-reactivate-student: Reactivate a student.
+**Open Issues:** OI-65 (a token issued to the student before her deactivation stays valid until it expires; see Timing above).
 
 ### **UC-STU-reactivate-student: The course admin/instructor reactivates a student**
 
