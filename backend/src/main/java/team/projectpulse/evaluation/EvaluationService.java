@@ -67,6 +67,12 @@ public class EvaluationService {
             throw new PeerEvaluationIllegalArgumentException("The evaluator and evaluatee must be on the same team.");
         }
 
+        // Make sure the evaluatee's account is active (BR-evaluatee-active): the form lists active teammates only, so
+        // this refuses a stale form or a hand-built request naming a deactivated teammate
+        if (!newPeerEvaluation.getEvaluatee().isEnabled()) {
+            throw new PeerEvaluationIllegalArgumentException("You can evaluate only a teammate whose account is active.");
+        }
+
         // Make sure this is not a duplicate evaluation
         if (this.evaluationRepository.findByWeekAndEvaluatorIdAndEvaluateeId(newPeerEvaluation.getWeek(), newPeerEvaluation.getEvaluator().getId(), newPeerEvaluation.getEvaluatee().getId()).isPresent()) {
             throw new PeerEvaluationIllegalArgumentException("You have already submitted an evaluation for " + newPeerEvaluation.getEvaluatee().getFirstName() + " in this week.");
@@ -170,7 +176,14 @@ public class EvaluationService {
     public PeerEvaluationAverage getPeerEvaluationAverage(String week, Student student) {
         // Get all evaluations for the student in the given week
         List<PeerEvaluation> evaluations = this.evaluationRepository.findByWeekAndEvaluateeId(week, student.getId());
+        return toPeerEvaluationAverage(week, student, evaluations);
+    }
 
+    /**
+     * Summarizes the given evaluations of one student for one week. Callers that have already loaded the evaluations
+     * pass them in, so the same rows are not read twice.
+     */
+    private PeerEvaluationAverage toPeerEvaluationAverage(String week, Student student, List<PeerEvaluation> evaluations) {
         PeerEvaluationAverage peerEvaluationAverage = new PeerEvaluationAverage();
 
         peerEvaluationAverage.setStudentId(student.getId());
@@ -224,9 +237,13 @@ public class EvaluationService {
         List<Student> students = this.studentRepository.findBySectionSectionId(sectionId).stream().filter(student -> student.getTeam() != null).collect(Collectors.toList());
 
         // For each student, compute her average total score, collect all public comments and private comments, and compute rating averages for each criterion.
+        // A student whose account is inactive is listed only for a week in which evaluations of her exist (BR-evaluatee-active).
         students.forEach(student -> {
-            PeerEvaluationAverage peerEvaluationAverage = getPeerEvaluationAverage(week, student);
-            report.getPeerEvaluationAverages().add(peerEvaluationAverage);
+            List<PeerEvaluation> evaluations = this.evaluationRepository.findByWeekAndEvaluateeId(week, student.getId());
+            if (!student.isEnabled() && evaluations.isEmpty()) {
+                return;
+            }
+            report.getPeerEvaluationAverages().add(toPeerEvaluationAverage(week, student, evaluations));
         });
 
         // Who has not submitted is not part of this report: it is BR-submission-owed, which the notification slice

@@ -39,7 +39,7 @@
           <el-tag type="danger" v-else>Disabled</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Operations" width="120">
+      <el-table-column label="Operations" width="160">
         <template #default="{ row }">
           <el-button
             icon="Edit"
@@ -47,6 +47,19 @@
             plain
             type="primary"
             @click.stop="showEditStudentDialog(row)"
+          ></el-button>
+          <!-- UC-STU-deactivate-student 3a1: not offered for a student who is already deactivated -->
+          <el-button
+            v-if="row.enabled"
+            icon="SwitchButton"
+            circle
+            plain
+            type="danger"
+            title="Deactivate"
+            data-cy="deactivate-student"
+            :loading="deactivatingStudentId === row.id"
+            :disabled="deactivatingStudentId !== null"
+            @click.stop="confirmDeactivateStudent(row)"
           ></el-button>
         </template>
       </el-table-column>
@@ -78,7 +91,8 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { searchStudents } from '@/apis/student'
+import axios from 'axios'
+import { deactivateStudent, searchStudents } from '@/apis/student'
 import type {
   SearchStudentByCriteriaResponse,
   Student,
@@ -86,7 +100,7 @@ import type {
 } from '@/apis/student/types'
 import { useSettingsStore } from '@/stores/settings'
 import EditStudentForm from './EditStudentForm.vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const searchCriteria = ref<StudentSearchCriteria>({
   sectionId: NaN,
@@ -162,6 +176,48 @@ function showEditStudentDialog(student: Student) {
 function closeDialog() {
   dialogVisible.value = false
   loadStudents()
+}
+
+// The student whose deactivation is in flight (the PATCH and the list reload that follows it), or null. The Deactivate
+// buttons stay disabled until it is null again, so a second click cannot send a second PATCH.
+const deactivatingStudentId = ref<number | null>(null)
+
+// UC-STU-deactivate-student: warn about the consequences, ask for confirmation, then deactivate
+async function confirmDeactivateStudent(student: Student) {
+  if (deactivatingStudentId.value !== null) return
+  try {
+    await ElMessageBox.confirm(
+      `${student.firstName} ${student.lastName} will no longer be able to log in or submit weekly activity reports and peer evaluations. ` +
+        'The account, submitted work, team, and course section are kept, and it can be reactivated later. Continue?',
+      'Deactivate a student',
+      {
+        confirmButtonText: 'Deactivate',
+        cancelButtonText: 'Cancel',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return // 5a: cancelled, nothing is sent
+  }
+  deactivatingStudentId.value = student.id as number
+  try {
+    try {
+      await deactivateStudent(student.id as number)
+      ElMessage.success('The student has been deactivated.')
+    } catch (error) {
+      // The shared request interceptor has already shown the server's message (409) or redirected: a 401 to the login
+      // page, a 403 to the forbidden page. After a redirect this page is being left, so it sends nothing more.
+      const httpStatus = axios.isAxiosError(error) ? error.response?.status : undefined
+      if (httpStatus === 401 || httpStatus === 403) return
+    }
+    try {
+      await loadStudents()
+    } catch {
+      loading.value = false // The interceptor has shown the error; do not leave the table spinner on
+    }
+  } finally {
+    deactivatingStudentId.value = null
+  }
 }
 
 import { useRouter } from 'vue-router'

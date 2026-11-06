@@ -9,7 +9,8 @@ import type {
   UpdateStudentResponse,
   Student,
   RegistrationParams,
-  FindStudentByTeamIdResponse
+  FindStudentByTeamIdResponse,
+  DeactivateStudentResponse
 } from './types'
 
 enum API {
@@ -39,3 +40,6 @@ export const updateStudent = (updatedStudent: Student) =>
 
 export const deleteStudent = (id: number) =>
   request.delete<any, DeleteStudentResponse>(`${API.STUDENTS_ENDPOINT}/${id}`)
+
+export const deactivateStudent = (id: number) =>
+  request.patch<any, DeactivateStudentResponse>(`${API.STUDENTS_ENDPOINT}/${id}/deactivate`)

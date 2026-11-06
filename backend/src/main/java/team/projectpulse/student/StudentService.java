@@ -4,6 +4,7 @@ import team.projectpulse.section.Section;
 import team.projectpulse.section.SectionRepository;
 import team.projectpulse.system.UserUtils;
 import team.projectpulse.system.exception.ObjectNotFoundException;
+import team.projectpulse.system.exception.StudentAlreadyDeactivatedException;
 import team.projectpulse.user.userinvitation.UserInvitationService;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
@@ -76,8 +77,13 @@ public class StudentService {
                 .orElseThrow(() -> new ObjectNotFoundException("student", studentId));
     }
 
+    /**
+     * Lists the team's students whose account is active. The peer evaluation form is the only caller, and a student
+     * may evaluate only an active teammate (BR-evaluatee-active). A caller that needs the whole team, inactive members
+     * included, needs a separate method rather than a wider one.
+     */
     public List<Student> findStudentsByTeamId(Integer teamId) {
-        return this.studentRepository.findByTeamTeamId(teamId);
+        return this.studentRepository.findByTeamTeamIdAndEnabledTrue(teamId);
     }
 
     public Student saveStudent(Student newStudent, Integer courseId, Integer sectionId, String registrationToken, String role) {
@@ -123,6 +129,25 @@ public class StudentService {
         }
 
         return this.studentRepository.save(oldStudent);
+    }
+
+    /**
+     * Deactivates the student (UC-STU-deactivate-student). Only the active flag changes: her team, course section, and
+     * submitted work are kept (BR-student-lifecycle).
+     *
+     * <p>The route carries no course section id, so the scope comes from the caller: the student is loaded only for
+     * an instructor assigned to her course section or the course admin of its course (BR-student-lifecycle). The
+     * route rule refuses everyone else first; this load is the second enforcement point, and to a caller outside
+     * that scope the student does not exist.
+     */
+    public Student deactivateStudent(Integer studentId) {
+        Student student = this.studentRepository.findByIdWithinAuthorityOf(studentId, this.userUtils.getUserId())
+                .orElseThrow(() -> new ObjectNotFoundException("student", studentId));
+        if (!student.isEnabled()) {
+            throw new StudentAlreadyDeactivatedException();
+        }
+        student.setEnabled(false);
+        return this.studentRepository.save(student);
     }
 
     public void deleteStudent(Integer studentId) {

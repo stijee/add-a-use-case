@@ -5,6 +5,8 @@ import team.projectpulse.instructor.Instructor;
 import team.projectpulse.section.Section;
 import team.projectpulse.section.SectionRepository;
 import team.projectpulse.system.UserUtils;
+import team.projectpulse.system.exception.ObjectNotFoundException;
+import team.projectpulse.system.exception.StudentAlreadyDeactivatedException;
 import team.projectpulse.user.MyUserPrincipal;
 import team.projectpulse.user.userinvitation.UserInvitationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -188,6 +191,103 @@ class StudentServiceTest {
 
         // Then
         verify(this.studentRepository, times(1)).deleteById(1);
+    }
+
+    /**
+     * Checks only that the service delegates to the active-only repository query. The repository is
+     * mocked here, so the active-only filter itself cannot be verified at this level: this test stays
+     * green if the query behind {@code findByTeamTeamIdAndEnabledTrue} returns inactive students too.
+     * The oracle for the filter is
+     * {@code StudentDeactivationIntegrationTest.teamListingOmitsDeactivatedTeammate}, confirmed by a
+     * break experiment: with the query overridden to select every student on the team, this test
+     * passed and that one failed.
+     */
+    @Test
+    void testFindStudentsByTeamIdDelegatesToTheActiveOnlyQuery() {
+        // Given
+        given(this.studentRepository.findByTeamTeamIdAndEnabledTrue(2)).willReturn(List.of(this.students.get(4), this.students.get(5)));
+
+        // When
+        List<Student> result = this.studentService.findStudentsByTeamId(2);
+
+        // Then
+        assertThat(result).hasSize(2);
+        verify(this.studentRepository, times(1)).findByTeamTeamIdAndEnabledTrue(2);
+    }
+
+    @Test
+    void testDeactivateStudent() {
+        // Given
+        Student woody = this.students.get(3);
+        given(this.userUtils.getUserId()).willReturn(2);
+        given(this.studentRepository.findByIdWithinAuthorityOf(7, 2)).willReturn(Optional.of(woody));
+        given(this.studentRepository.save(woody)).willReturn(woody);
+
+        // When
+        Student result = this.studentService.deactivateStudent(7);
+
+        // Then
+        assertThat(result.isEnabled()).isFalse();
+        verify(this.studentRepository, times(1)).save(woody);
+    }
+
+    @Test
+    void testDeactivateStudentAlreadyDeactivated() {
+        // Given
+        Student woody = this.students.get(3);
+        woody.setEnabled(false);
+        given(this.userUtils.getUserId()).willReturn(2);
+        given(this.studentRepository.findByIdWithinAuthorityOf(7, 2)).willReturn(Optional.of(woody));
+
+        // When
+        Throwable thrown = catchThrowable(() -> this.studentService.deactivateStudent(7));
+
+        // Then
+        assertThat(thrown)
+                .isInstanceOf(StudentAlreadyDeactivatedException.class)
+                .hasMessage("The student is already deactivated.");
+        verify(this.studentRepository, never()).save(any());
+    }
+
+    @Test
+    void testDeactivateStudentNotFound() {
+        // Given
+        given(this.userUtils.getUserId()).willReturn(2);
+        given(this.studentRepository.findByIdWithinAuthorityOf(999, 2)).willReturn(Optional.empty());
+
+        // When
+        Throwable thrown = catchThrowable(() -> this.studentService.deactivateStudent(999));
+
+        // Then
+        assertThat(thrown).isInstanceOf(ObjectNotFoundException.class);
+        verify(this.studentRepository, never()).save(any());
+    }
+
+    /**
+     * The service's own enforcement point, behind the route rule: a caller who is neither assigned to the student's
+     * course section nor the course admin of its course is refused here too. The student exists and is active, and
+     * the unscoped {@code findById} would return him, so this test fails if the service goes back to loading by id
+     * alone. The repository is mocked, so what this checks is that the service loads through the caller's scope and
+     * refuses when that load finds nothing; it cannot check the query behind {@code findByIdWithinAuthorityOf}.
+     */
+    @Test
+    void testDeactivateStudentRefusedForCallerOutsideTheCourseSection() {
+        // Given
+        Student woody = this.students.get(3);
+        given(this.userUtils.getUserId()).willReturn(99); // not assigned to Woody's course section, not its course's admin
+        given(this.studentRepository.findByIdWithinAuthorityOf(7, 99)).willReturn(Optional.empty());
+        lenient().when(this.studentRepository.findById(7)).thenReturn(Optional.of(woody)); // he exists; lenient because the service must not ask
+
+        // When
+        Throwable thrown = catchThrowable(() -> this.studentService.deactivateStudent(7));
+
+        // Then
+        assertThat(thrown)
+                .isInstanceOf(ObjectNotFoundException.class)
+                .hasMessage("Could not find student with Id 7 :(");
+        assertThat(woody.isEnabled()).isTrue();
+        verify(this.studentRepository, never()).findById(7);
+        verify(this.studentRepository, never()).save(any());
     }
 
 }

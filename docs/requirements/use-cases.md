@@ -1484,8 +1484,10 @@ Details:
   - 5a1. The system changes nothing.
   - 5a2. Use case ends.
 - **6a. The deactivated student is on a team:**
-  - 6a1. The system no longer lists her on her teammates' peer evaluation forms (BR-evaluatee-active); she stays on her team (BR-student-lifecycle). The course section's peer evaluation report lists her only for a week in which peer evaluations of her exist (BR-evaluatee-active).
-  - 6a2. Use case ends.
+  - 6a1. The system no longer lists her on her teammates' peer evaluation forms (BR-evaluatee-active).
+  - 6a2. The course section's peer evaluation report lists her only for a week in which peer evaluations of her exist (BR-evaluatee-active).
+  - 6a3. She stays on her team (BR-student-lifecycle).
+  - 6a4. Use case ends.
 
 **Priority:** Low
 **Frequency of Use:** Rare. Occurs occasionally when a student withdraws from a course section.
@@ -1496,8 +1498,8 @@ Details:
 - Timing: Deactivation takes effect at the student's next authentication. A token issued to her before the deactivation stays valid until it expires (2 hours); this gap against FR-SEC-active-account is tracked as OI-65.
 
 **Related Use Cases:** UC-STU-delete-student: Delete a student; UC-STU-reactivate-student: Reactivate a student
-**Assumptions:**
-**Open Issues:**
+**Assumptions:** A course admin or instructor permitted by BR-student-lifecycle needs no further approval to deactivate a student. A deactivation is undone only through UC-STU-reactivate-student: Reactivate a student.
+**Open Issues:** OI-65 (a token issued to the student before her deactivation stays valid until it expires; see Timing above).
 
 ### **UC-STU-reactivate-student: The course admin/instructor reactivates a student**
 
