@@ -134,9 +134,14 @@ public class StudentService {
     /**
      * Deactivates the student (UC-STU-deactivate-student). Only the active flag changes: her team, course section, and
      * submitted work are kept (BR-student-lifecycle).
+     *
+     * <p>The route carries no course section id, so the scope comes from the caller: the student is loaded only for
+     * an instructor assigned to her course section or the course admin of its course (BR-student-lifecycle). The
+     * route rule refuses everyone else first; this load is the second enforcement point, and to a caller outside
+     * that scope the student does not exist.
      */
     public Student deactivateStudent(Integer studentId) {
-        Student student = this.studentRepository.findById(studentId)
+        Student student = this.studentRepository.findByIdWithinAuthorityOf(studentId, this.userUtils.getUserId())
                 .orElseThrow(() -> new ObjectNotFoundException("student", studentId));
         if (!student.isEnabled()) {
             throw new StudentAlreadyDeactivatedException();

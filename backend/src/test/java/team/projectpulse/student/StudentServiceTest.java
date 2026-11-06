@@ -219,7 +219,8 @@ class StudentServiceTest {
     void testDeactivateStudent() {
         // Given
         Student woody = this.students.get(3);
-        given(this.studentRepository.findById(7)).willReturn(Optional.of(woody));
+        given(this.userUtils.getUserId()).willReturn(2);
+        given(this.studentRepository.findByIdWithinAuthorityOf(7, 2)).willReturn(Optional.of(woody));
         given(this.studentRepository.save(woody)).willReturn(woody);
 
         // When
@@ -235,7 +236,8 @@ class StudentServiceTest {
         // Given
         Student woody = this.students.get(3);
         woody.setEnabled(false);
-        given(this.studentRepository.findById(7)).willReturn(Optional.of(woody));
+        given(this.userUtils.getUserId()).willReturn(2);
+        given(this.studentRepository.findByIdWithinAuthorityOf(7, 2)).willReturn(Optional.of(woody));
 
         // When
         Throwable thrown = catchThrowable(() -> this.studentService.deactivateStudent(7));
@@ -250,13 +252,41 @@ class StudentServiceTest {
     @Test
     void testDeactivateStudentNotFound() {
         // Given
-        given(this.studentRepository.findById(999)).willReturn(Optional.empty());
+        given(this.userUtils.getUserId()).willReturn(2);
+        given(this.studentRepository.findByIdWithinAuthorityOf(999, 2)).willReturn(Optional.empty());
 
         // When
         Throwable thrown = catchThrowable(() -> this.studentService.deactivateStudent(999));
 
         // Then
         assertThat(thrown).isInstanceOf(ObjectNotFoundException.class);
+        verify(this.studentRepository, never()).save(any());
+    }
+
+    /**
+     * The service's own enforcement point, behind the route rule: a caller who is neither assigned to the student's
+     * course section nor the course admin of its course is refused here too. The student exists and is active, and
+     * the unscoped {@code findById} would return him, so this test fails if the service goes back to loading by id
+     * alone. The repository is mocked, so what this checks is that the service loads through the caller's scope and
+     * refuses when that load finds nothing; it cannot check the query behind {@code findByIdWithinAuthorityOf}.
+     */
+    @Test
+    void testDeactivateStudentRefusedForCallerOutsideTheCourseSection() {
+        // Given
+        Student woody = this.students.get(3);
+        given(this.userUtils.getUserId()).willReturn(99); // not assigned to Woody's course section, not its course's admin
+        given(this.studentRepository.findByIdWithinAuthorityOf(7, 99)).willReturn(Optional.empty());
+        lenient().when(this.studentRepository.findById(7)).thenReturn(Optional.of(woody)); // he exists; lenient because the service must not ask
+
+        // When
+        Throwable thrown = catchThrowable(() -> this.studentService.deactivateStudent(7));
+
+        // Then
+        assertThat(thrown)
+                .isInstanceOf(ObjectNotFoundException.class)
+                .hasMessage("Could not find student with Id 7 :(");
+        assertThat(woody.isEnabled()).isTrue();
+        verify(this.studentRepository, never()).findById(7);
         verify(this.studentRepository, never()).save(any());
     }
 

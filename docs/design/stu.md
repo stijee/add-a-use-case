@@ -29,6 +29,7 @@ classDiagram
     class StudentRepository {
         <<reused, student>>
         +findByTeamTeamIdAndEnabledTrue(teamId) NEW, replaces findByTeamTeamId
+        +findByIdWithinAuthorityOf(studentId, userId) NEW
     }
     class StudentSecurityService {
         <<reused, student>>
@@ -88,7 +89,7 @@ sequenceDiagram
         else permitted
             SEC->>SC: deactivateStudent(studentId)
             SC->>SS: deactivateStudent(studentId)
-            SS->>DB: findById
+            SS->>DB: findByIdWithinAuthorityOf(studentId, caller)
             alt already inactive (3a2)
                 SS-->>SC: StudentAlreadyDeactivatedException
                 SC-->>SPA: 409 "The student is already deactivated."
@@ -138,7 +139,7 @@ The student's account has two states, active and inactive, and this use case dra
 
 **A dedicated endpoint rather than the generic edit.** `PATCH /students/{studentId}/deactivate` carries only the intent. Rejected: `PUT /students/{studentId}` with `enabled: false`. Its guard refuses the owning course admin, it rewrites the name and email fields, and it gives the deactivate intent no route of its own to authorize or test.
 
-**Authorization is composed, not widened.** The new route composes the existing `StudentInstructorAuthorizationManager` with a new course-admin manager using `anyOf`. This is the same shape as the NOT area's [Authorization](not.md#key-decisions) decision for course sections. Rejected: adding the course-admin check to `UserOwnershipAuthorizationManager`, which guards `GET`, `PUT`, and `DELETE /students/{studentId}` too and would open those to course admins without a use case asking for it.
+**Authorization is composed, not widened, and enforced at both points.** Point 1, the route rule: the new route composes the existing `StudentInstructorAuthorizationManager` with a new course-admin manager using `anyOf`. This is the same shape as the NOT area's [Authorization](not.md#key-decisions) decision for course sections. Rejected: adding the course-admin check to `UserOwnershipAuthorizationManager`, which guards `GET`, `PUT`, and `DELETE /students/{studentId}` too and would open those to course admins without a use case asking for it. Point 2, the scoped load: the route is flat (it carries no course section id), so `StudentService.deactivateStudent` takes the caller from `UserUtils.getUserId()` and loads her through `StudentRepository.findByIdWithinAuthorityOf(studentId, userId)`, a query that finds her only for an instructor assigned to her course section or the course admin of its course, the same authority set as the route rule (BR-student-lifecycle). To any other caller she does not exist: `ObjectNotFoundException`, a `404`. The route rule answers `403` first, so that `404` is reached only if the rule is loosened, reordered, or copied to a route without it, which is the case the second point exists for ([Authorization](architectural-design.md#authorization)). Rejected: `findById` followed by a comparison in the service, which leaves the unscoped load in place. Rejected: scoping by the caller's default course section (`UserUtils.getUserSectionId()`, as `findByCriteria` does), which would refuse the owning course admin who is not assigned to the course section and an instructor assigned to it whose default is another one, both of whom BR-student-lifecycle permits.
 
 **An already inactive student gets a `409`, not an idempotent `200`.** Rejected: an idempotent no-op. A second instructor would be told the student "has been deactivated" by an action that changed nothing, and 3a2 would have no response of its own to test.
 
