@@ -621,9 +621,9 @@ class EvaluationServiceTest {
         given(this.studentRepository.findBySectionSectionId(anyInt())).willReturn(this.students);
         given(this.evaluationRepository.findByWeekAndEvaluateeId("2023-W31", 3)).willReturn(this.johnsEvaluations);
         given(this.evaluationRepository.findByWeekAndEvaluateeId("2023-W31", 4)).willReturn(this.ericsW31Evaluations);
-        given(this.evaluationRepository.findByWeekAndEvaluateeId("2023-W31", 5)).willReturn(this.woodysEvaluations);
-        given(this.evaluationRepository.findByWeekAndEvaluateeId("2023-W31", 6)).willReturn(this.amandasEvaluations);
-        // Amanda (id 7) has no evaluations of her this week; the mock returns an empty list
+        given(this.evaluationRepository.findByWeekAndEvaluateeId("2023-W31", 5)).willReturn(this.jerryEvaulaitons);
+        given(this.evaluationRepository.findByWeekAndEvaluateeId("2023-W31", 6)).willReturn(this.woodysEvaluations);
+        given(this.evaluationRepository.findByWeekAndEvaluateeId("2023-W31", 7)).willReturn(List.of()); // no evaluations of Amanda this week
         this.john.setEnabled(false); // inactive, but evaluations of him exist this week
         this.amanda.setEnabled(false); // inactive, and no evaluations of her this week
 
